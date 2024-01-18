@@ -1,0 +1,120 @@
+Copyright (c) 2016
+Lawrence Livermore National Security, LLC
+All Rights Reserved
+Quicksilver Version     : 2023-May-26-11:27:15
+Quicksilver Git Hash    : 34b8df4653e660cfd9253dc8671677f09c73783d
+MPI Version             : 3.1
+Number of MPI ranks     : 4
+Number of OpenMP Threads: 1
+Number of OpenMP CPUs   : 1
+
+Simulation:
+   dt: 1e-08
+   fMax: 0.1
+   inputFile: Coral2_P2.inp
+   energySpectrum: 
+   boundaryCondition: reflect
+   loadBalance: 0
+   cycleTimers: 0
+   debugThreads: 0
+   lx: 4
+   ly: 2
+   lz: 2
+   nParticles: 851840
+   batchSize: 0
+   nBatches: 10
+   nSteps: 100
+   nx: 44
+   ny: 22
+   nz: 22
+   seed: 1029384756
+   xDom: 4
+   yDom: 2
+   zDom: 2
+   eMax: 20
+   eMin: 1e-08
+   nGroups: 230
+   lowWeightCutoff: 0.001
+   bTally: 1
+   fTally: 1
+   cTally: 1
+   coralBenchmark: 2
+   crossSectionsOut:
+
+Geometry:
+   material: sourceMaterial
+   shape: brick
+   xMax: 10000
+   xMin: 0
+   yMax: 10000
+   yMin: 0
+   zMax: 10000
+   zMin: 0
+
+Material:
+   name: sourceMaterial
+   mass: 1.5
+   nIsotopes: 10
+   nReactions: 3
+   sourceRate: 1e+10
+   totalCrossSection: 16.75
+   absorptionCrossSection: absorb
+   fissionCrossSection: fission
+   scatteringCrossSection: scatter
+   absorptionCrossSectionRatio: 10
+   fissionCrossSectionRatio: 8
+   scatteringCrossSectionRatio: 82
+
+CrossSection:
+   name: absorb
+   A: 0
+   B: 0
+   C: 0
+   D: -0.2
+   E: 2
+   nuBar: 2.4
+CrossSection:
+   name: fission
+   A: 0
+   B: 0
+   C: 0
+   D: -0.2
+   E: 2
+   nuBar: 2
+CrossSection:
+   name: scatter
+   A: 0
+   B: 0
+   C: 0
+   D: 0
+   E: 97
+   nuBar: 2.4
+file=initMC.cc: line=274 ERROR
+Building partition 0
+file=initMC.cc: line=274 ERROR
+file=initMC.cc: line=274 ERROR
+[lassen28:141008] *** An error occurred in MPI_Irecv
+[lassen28:141008] *** reported by process [0,0]
+[lassen29:110888] *** An error occurred in MPI_Irecv
+[lassen28:141008] *** on communicator MPI_COMM_WORLD
+[lassen31:19923] *** An error occurred in MPI_Irecv
+[lassen28:141008] *** MPI_ERR_RANK: invalid rank
+[lassen30:13272] *** An error occurred in MPI_Irecv
+[lassen28:141008] *** MPI_ERRORS_ARE_FATAL (processes in this communicator will now abort,
+[lassen29:110888] *** reported by process [0,1]
+[lassen28:141008] ***    and potentially your MPI job)
+[lassen31:19923] *** reported by process [0,3]
+[lassen30:13272] *** reported by process [0,2]
+[lassen30:13272] *** on communicator MPI_COMM_WORLD
+[lassen30:13272] *** MPI_ERR_RANK: invalid rank
+[lassen29:110888] *** on communicator MPI_COMM_WORLD
+file=initMC.cc: line=274 ERROR
+[lassen29:110888] *** MPI_ERR_RANK: invalid rank
+[lassen30:13272] *** MPI_ERRORS_ARE_FATAL (processes in this communicator will now abort,
+[lassen29:110888] *** MPI_ERRORS_ARE_FATAL (processes in this communicator will now abort,
+[lassen30:13272] ***    and potentially your MPI job)
+[lassen29:110888] ***    and potentially your MPI job)
+[lassen31:19923] *** on communicator MPI_COMM_WORLD
+[lassen31:19923] *** MPI_ERR_RANK: invalid rank
+[lassen31:19923] *** MPI_ERRORS_ARE_FATAL (processes in this communicator will now abort,
+[lassen31:19923] ***    and potentially your MPI job)

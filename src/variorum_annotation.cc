@@ -74,25 +74,33 @@ void write_to_file(const char *filename, const char *caller_filename, int line,
 void variorum_annotate_get_node_power_json(const char *file, int line,
                                            const char *function_name) {
   char *s = NULL;
-  clock_t start,end,start_1,end_1;
+ struct timespec start,end;
+
+ struct timespec start_1,end_1;
+  // clock_t start,end,start_1,end_1;
   if (processor_rank == 0) {
     // double start=MPI_Wtime();
-    start=clock();
+    // double start = time();
+    clock_gettime(CLOCK_MONOTONIC,&start);
     ret = variorum_get_node_power_json(&s);
     // double end=MPI_Wtime();
-    end=clock();
-    time_delay_due_to_variorum+=((double)end-start)/CLOCKS_PER_SEC;
+    clock_gettime(CLOCK_MONOTONIC,&end);
+    // end=clock();
+    time_delay_due_to_variorum+=((end.tv_sec-start.tv_sec)+(end.tv_nsec-start.tv_nsec)/1E9);
+    // time_delay_due_to_variorum+=((double)end-start)/CLOCKS_PER_SEC;
     if (ret != 0) {
       printf("variorum:JSON get node power failed.\n");
       free(s);
       return;
     }
     // double start_1=MPI_Wtime();
-    start_1=clock();
+    // start_1=clock();
+    clock_gettime(CLOCK_MONOTONIC,&start_1);
     write_to_file(host, file, line, function_name, s);
     // double end_1=MPI_Wtime(); 
-    end_1=clock();
-    time_delay_due_to_file_write+=((double)end_1-start_1)/CLOCKS_PER_SEC; 
+    clock_gettime(CLOCK_MONOTONIC,&end_1);
+    time_delay_due_to_file_write=((end_1.tv_sec-start_1.tv_sec)+(end_1.tv_nsec-start_1.tv_nsec)/1E9);
+    // time_delay_due_to_file_write+=((double)end_1-start_1)/CLOCKS_PER_SEC; 
     free(s);
   }
 }

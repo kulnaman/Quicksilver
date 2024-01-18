@@ -1,6 +1,6 @@
 # Prerequisites
 *.d
-
+*.txt
 # Compiled Object files
 *.slo
 *.lo
@@ -30,7 +30,7 @@
 *.exe
 *.out
 *.app
-
+*.dat
 # Project-specific
 .depend
 .depend.bak
