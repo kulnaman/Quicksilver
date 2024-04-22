@@ -109,11 +109,11 @@ SHELL = /bin/bash
 #LDFLAGS = -L$(ROCM_ROOT)/lib -lamdhip64
 
 #AMD with HIP
-ROCM_ROOT = /opt/rocm-5.6.0
-CXX = /usr/tce/packages/cray-mpich/cray-mpich-8.1.26-rocmcc-5.6.0-cce-16.0.0a-magic/bin/mpicxx
-CXXFLAGS = -g 
-CPPFLAGS = -DHAVE_MPI -DHAVE_HIP -x hip --offload-arch=gfx90a -fgpu-rdc -Wno-unused-result
-LDFLAGS = -fgpu-rdc --hip-link --offload-arch=gfx90a
+# ROCM_ROOT = /opt/rocm-5.6.0
+# CXX = /usr/tce/packages/cray-mpich/cray-mpich-8.1.26-rocmcc-5.6.0-cce-16.0.0a-magic/bin/mpicxx
+# CXXFLAGS = -g 
+# CPPFLAGS = -DHAVE_MPI -DHAVE_HIP -x hip --offload-arch=gfx90a -fgpu-rdc -Wno-unused-result
+# LDFLAGS = -fgpu-rdc --hip-link --offload-arch=gfx90a
 
 
 
@@ -202,13 +202,12 @@ CUDA_PATH =/usr/tce/packages/cuda/cuda-10.1.243
 ##HOST_COMPILER = /usr/tce/packages/spectrum-mpi/spectrum-mpi-2017.04.03-xl-beta-2017.09.13/bin/mpixlC
 
 #Variorum Path
- VARIORUM_DIR=/g/g92/namankul/variorum/install_lassen_both
+ VARIORUM_DIR=/g/g92/namankul/variorum_energy/variorum/install
  include ${VARIORUM_DIR}/share/variorum/variorum_config.mk
 
 #Rankstr 
  RANKSTR_DIR=/g/g92/namankul/local/rankstr_lassen
- OPTFLAGS = -g -O3
-## Version below for debugging
+ OPTFLAGS = -g -O3 ## Version below for debugging 
 ##OPTFLAGS = -DUSE_NVTX -g -G -lineinfo -O0
 
  CUDA_FLAGS = -I${CUDA_PATH}/include/ ${VARIORUM_INCLUDE_FLAGS} -I${RANKSTR_DIR}/include
@@ -217,11 +216,11 @@ CUDA_PATH =/usr/tce/packages/cuda/cuda-10.1.243
  CXX=$(CUDA_PATH)/bin/nvcc
  CXXFLAGS = -DHAVE_CUDA -std=c++11 $(OPTFLAGS) 
  CXXFLAGS += -gencode=arch=compute_60,code=\"sm_60,compute_60\" 
- CXXFLAGS += --compiler-bindir=$(HOST_COMPILER)
- # CPPFLAGS = -x cu -dc -DHAVE_MPI -DHAVE_ASYNC_MPI -DHAVE_VARIORUM  ${CUDA_FLAGS}
-CPPFLAGS = -x cu -dc -DHAVE_MPI -DHAVE_ASYNC_MPI  ${CUDA_FLAGS}
+ CXXFLAGS += --compiler-bindir=$(HOST_COMPILER) 
+ CPPFLAGS = -x cu -dc -DHAVE_MPI -DHAVE_ASYNC_MPI -DHAVE_VARIORUM  ${CUDA_FLAGS}
+# CPPFLAGS = -x cu -dc -DHAVE_MPI -DHAVE_ASYNC_MPI  ${CUDA_FLAGS}
  RANKSTR_FLAGS= -Xlinker=-rpath,${RANKSTR_DIR}/lib64 -L${RANKSTR_DIR}/lib64 -lrankstr
- LDFLAGS  = $(CUDA_LDFLAGS) -Xlinker=-rpath,${VARIORUM_DIR}/lib ${VARIORUM_LIB_FLAGS} ${RANKSTR_FLAGS} 
+ LDFLAGS  = $(CUDA_LDFLAGS) -Xlinker=-rpath,${VARIORUM_DIR}/lib ${VARIORUM_LIB_FLAGS} ${RANKSTR_FLAGS} -ljansson
 ##LDFLAGS += ${CUDA_PATH}/lib64/libnvToolsExt.so
 
 
