@@ -82,6 +82,7 @@ namespace
       #elif defined(HAVE_CUDA)
          int Ngpus;
          cudaGetDeviceCount(&Ngpus);
+        std::cout << "Num of GPUS " << Ngpus <<std::endl;
       #else
          int Ngpus = 0;
       #endif
@@ -92,11 +93,12 @@ namespace
             monteCarlo->processor_info->use_gpu = 1;
             int GPUID = monteCarlo->processor_info->rank%Ngpus;
             monteCarlo->processor_info->gpu_id = GPUID;
+        std::cout << "GPUID " << GPUID << " rank "<<monteCarlo->processor_info->rank <<std::endl;
             
             #if defined(HAVE_OPENMP_TARGET)
                 omp_set_default_device(GPUID);
             #endif
-
+          
             cudaSetDevice(GPUID);
             //cudaDeviceSetLimit( cudaLimitStackSize, 64*1024 );
             #endif
@@ -116,7 +118,7 @@ namespace
         warmup_kernel();
 #endif
 
-         //printf("monteCarlo->processor_info->use_gpu = %d\n", monteCarlo->processor_info->use_gpu);
+         printf("monteCarlo->processor_info->use_gpu = %d\n", monteCarlo->processor_info->use_gpu);
          
    }
 }
