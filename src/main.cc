@@ -1,374 +1,350 @@
-#include <iostream>
-#include "utils.hh"
-#include "Parameters.hh"
-#include "utilsMpi.hh"
-#include "MonteCarlo.hh"
-#include "initMC.hh"
-#include "Tallies.hh"
-#include "PopulationControl.hh"
-#include "ParticleVaultContainer.hh"
-#include "ParticleVault.hh"
+#include "CoralBenchmark.hh"
+#include "CycleTracking.hh"
+#include "EnergySpectrum.hh"
+#include "MC_Fast_Timer.hh"
 #include "MC_Particle_Buffer.hh"
 #include "MC_Processor_Info.hh"
-#include "MC_Time_Info.hh"
-#include "macros.hh"
-#include "MC_Fast_Timer.hh"
 #include "MC_SourceNow.hh"
-#include "SendQueue.hh"
+#include "MC_Time_Info.hh"
+#include "MonteCarlo.hh"
 #include "NVTX_Range.hh"
-#include "cudaUtils.hh"
+#include "Parameters.hh"
+#include "ParticleVault.hh"
+#include "ParticleVaultContainer.hh"
+#include "PopulationControl.hh"
+#include "SendQueue.hh"
+#include "Tallies.hh"
 #include "cudaFunctions.hh"
-#include "qs_assert.hh"
-#include "CycleTracking.hh"
-#include "CoralBenchmark.hh"
-#include "EnergySpectrum.hh"
+#include "cudaUtils.hh"
 #include "git_hash.hh"
 #include "git_vers.hh"
+#include "initMC.hh"
+#include "macros.hh"
+#include "qs_assert.hh"
+#include "utils.hh"
+#include "utilsMpi.hh"
+#include <iostream>
 #ifdef HAVE_VARIORUM
 #include "variorum_annotation.hh"
 #endif
 void gameOver();
-void cycleInit( bool loadBalance );
-void cycleTracking(MonteCarlo* monteCarlo);
+void cycleInit(bool loadBalance);
+void cycleTracking(MonteCarlo *monteCarlo);
 void cycleFinalize();
 
 using namespace std;
 
-MonteCarlo *mcco  = NULL;
+MonteCarlo *mcco = NULL;
 
-int main(int argc, char** argv)
-{
-   mpiInit(&argc, &argv);
+int main(int argc, char **argv) {
+  mpiInit(&argc, &argv);
+  printBanner(GIT_VERS, GIT_HASH);
+  // int ret=print_variorum_data();
+#ifdef HAVE_VARIORUM
+  variorum_annotate_init();
+  VARIORUM_ANNOTATE_GET_POWER_INFO;
+  VARIORUM_ANNOTATE_GET_ENERGY_INFO;
+#endif
+  Parameters params = getParameters(argc, argv);
+  printParameters(params, cout);
 
-   printBanner(GIT_VERS, GIT_HASH);
-   // int ret=print_variorum_data();
-  #ifdef HAVE_VARIORUM 
-  variorum_annotate_init(); 
-  VARIORUM_ANNOTATE_GET_NODE_POWER_JSON;
-  #endif
-   Parameters params = getParameters(argc, argv);
-   printParameters(params, cout);
+  // mcco stores just about everything.
+  mcco = initMC(params);
 
-   // mcco stores just about everything. 
-   mcco = initMC(params); 
+  int loadBalance = params.simulationParams.loadBalance;
 
-   int loadBalance = params.simulationParams.loadBalance;
+  MC_FASTTIMER_START(MC_Fast_Timer::main); // this can be done once mcco exist.
 
-   MC_FASTTIMER_START(MC_Fast_Timer::main);     // this can be done once mcco exist.
+  const int nSteps = params.simulationParams.nSteps;
 
-   const int nSteps = params.simulationParams.nSteps;
+  for (int ii = 0; ii < nSteps; ++ii) {
+    cycleInit(bool(loadBalance));
+    cycleTracking(mcco);
+    cycleFinalize();
 
-   for (int ii=0; ii<nSteps; ++ii)
-   {
-      cycleInit( bool(loadBalance) );
-      cycleTracking(mcco);
-      cycleFinalize();
+    mcco->fast_timer->Last_Cycle_Report(params.simulationParams.cycleTimers,
+                                        mcco->processor_info->rank,
+                                        mcco->processor_info->num_processors,
+                                        mcco->processor_info->comm_mc_world);
+  }
 
-      mcco->fast_timer->Last_Cycle_Report(
-            params.simulationParams.cycleTimers,
-            mcco->processor_info->rank,
-            mcco->processor_info->num_processors,
-            mcco->processor_info->comm_mc_world );
-   }
+  MC_FASTTIMER_STOP(MC_Fast_Timer::main);
 
+  gameOver();
 
-   MC_FASTTIMER_STOP(MC_Fast_Timer::main);
-
-   gameOver();
-
-   coralBenchmarkCorrectness(mcco, params);
+  coralBenchmarkCorrectness(mcco, params);
 
 #ifdef HAVE_UVM
-    mcco->~MonteCarlo();
-    cudaFree( mcco );
+  mcco->~MonteCarlo();
+  gpuFree(mcco);
 #else
-   delete mcco;
+  delete mcco;
 #endif
-  #ifdef HAVE_VARIORUM
+#ifdef HAVE_VARIORUM
   variorum_annotate_finalize();
-  #endif
-   mpiFinalize();
-   
-   return 0;
+#endif
+  mpiFinalize();
+
+  return 0;
 }
-// int print_variorum_data()
-// {
-//  int ret;
-//     char *s = NULL;
-//     int num_sockets = 0;
-//
-//     /* Determine number of sockets */
-//     num_sockets = variorum_get_num_sockets();
-//   	printf("Core count is %d\n",variorum_get_num_cores()); 
-//   	printf("Version is %s\n",variorum_get_current_version()); 
-//   	printf("power os %d\n",variorum_print_power()); 
-//     if (num_sockets <= 0)
-//     {
-//         printf("HWLOC returned an invalid number of sockets. Exiting.\n");
-//         exit(-1);
-//     }
-//     ret = variorum_get_node_power_json(&s);
-//     if (ret != 0)
-//     {
-//         printf("First run: JSON get node power failed!\n");
-//         free(s);
-//         exit(-1);
-//     }
-//
-//     puts(s);
-//
-//     free(s);
-//     return ret;
-// }
-void gameOver()
-{
-    mcco->fast_timer->Cumulative_Report(mcco->processor_info->rank,
-                                        mcco->processor_info-> num_processors,
-                                        mcco->processor_info->comm_mc_world,
-                                        mcco->_tallies->_balanceCumulative._numSegments);
-    mcco->_tallies->_spectrum.PrintSpectrum(mcco);
+void gameOver() {
+  mcco->fast_timer->Cumulative_Report(
+      mcco->processor_info->rank, mcco->processor_info->num_processors,
+      mcco->processor_info->comm_mc_world,
+      mcco->_tallies->_balanceCumulative._numSegments);
+  mcco->_tallies->_spectrum.PrintSpectrum(mcco);
 }
 
-void cycleInit( bool loadBalance )
-{
+void cycleInit(bool loadBalance) {
 
-  #ifdef HAVE_VARIORUM 
-  VARIORUM_ANNOTATE_GET_NODE_POWER_JSON;
-  #endif
-    MC_FASTTIMER_START(MC_Fast_Timer::cycleInit);
+#ifdef HAVE_VARIORUM
+  VARIORUM_ANNOTATE_GET_POWER_INFO;
+  VARIORUM_ANNOTATE_GET_ENERGY_INFO;
+#endif
+  MC_FASTTIMER_START(MC_Fast_Timer::cycleInit);
 
-    mcco->clearCrossSectionCache();
+  mcco->clearCrossSectionCache();
 
-    mcco->_tallies->CycleInitialize(mcco);
+  mcco->_tallies->CycleInitialize(mcco);
 
-    mcco->_particleVaultContainer->swapProcessingProcessedVaults();
+  mcco->_particleVaultContainer->swapProcessingProcessedVaults();
 
-    mcco->_particleVaultContainer->collapseProcessed();
-    mcco->_particleVaultContainer->collapseProcessing();
+  mcco->_particleVaultContainer->collapseProcessed();
+  mcco->_particleVaultContainer->collapseProcessing();
 
-    mcco->_tallies->_balanceTask[0]._start = mcco->_particleVaultContainer->sizeProcessing();
+  mcco->_tallies->_balanceTask[0]._start =
+      mcco->_particleVaultContainer->sizeProcessing();
 
-    mcco->particle_buffer->Initialize();
+  mcco->particle_buffer->Initialize();
 
-    MC_SourceNow(mcco);
-   
-    PopulationControl(mcco, loadBalance); // controls particle population
+  MC_SourceNow(mcco);
 
-    RouletteLowWeightParticles(mcco); // Delete particles with low statistical weight
+  PopulationControl(mcco, loadBalance); // controls particle population
 
-    MC_FASTTIMER_STOP(MC_Fast_Timer::cycleInit);
+  RouletteLowWeightParticles(
+      mcco); // Delete particles with low statistical weight
+
+  MC_FASTTIMER_STOP(MC_Fast_Timer::cycleInit);
 }
 
+#if defined GPU_NATIVE
 
-#if defined (HAVE_CUDA)
+GLOBAL void CycleTrackingKernel(MonteCarlo *monteCarlo, int num_particles,
+                                ParticleVault *processingVault,
+                                ParticleVault *processedVault) {
+  int global_index = getGlobalThreadID();
+  if (global_index < num_particles) {
 
-__global__ void CycleTrackingKernel( MonteCarlo* monteCarlo, int num_particles, ParticleVault* processingVault, ParticleVault* processedVault )
-{
-   int global_index = getGlobalThreadID(); 
-    if( global_index < num_particles )
-    {
-    
-        CycleTrackingGuts( monteCarlo, global_index, processingVault, processedVault );
-    }
+    CycleTrackingGuts(monteCarlo, global_index, processingVault,
+                      processedVault);
+  }
 }
 
 #endif
 
-void cycleTracking(MonteCarlo *monteCarlo)
-{
- 
-  #ifdef HAVE_VARIORUM 
-  VARIORUM_ANNOTATE_GET_NODE_POWER_JSON;
-  #endif
-    MC_FASTTIMER_START(MC_Fast_Timer::cycleTracking);
+void cycleTracking(MonteCarlo *monteCarlo) {
 
-    bool done = false;
+#ifdef HAVE_VARIORUM
+  VARIORUM_ANNOTATE_GET_POWER_INFO;
+  VARIORUM_ANNOTATE_GET_ENERGY_INFO;
+#endif
+  MC_FASTTIMER_START(MC_Fast_Timer::cycleTracking);
 
-    //Determine whether or not to use GPUs if they are available (set for each MPI rank)
-    ExecutionPolicy execPolicy = getExecutionPolicy( monteCarlo->processor_info->use_gpu );
+  bool done = false;
 
-    ParticleVaultContainer &my_particle_vault = *(monteCarlo->_particleVaultContainer);
+  // Determine whether or not to use GPUs if they are available (set for each
+  // MPI rank)
+  ExecutionPolicy execPolicy =
+      getExecutionPolicy(monteCarlo->processor_info->use_gpu);
 
-    //Post Inital Receives for Particle Buffer
-    monteCarlo->particle_buffer->Post_Receive_Particle_Buffer( my_particle_vault.getVaultSize() );
+  ParticleVaultContainer &my_particle_vault =
+      *(monteCarlo->_particleVaultContainer);
 
-    //Get Test For Done Method (Blocking or non-blocking
-    MC_New_Test_Done_Method::Enum new_test_done_method = monteCarlo->particle_buffer->new_test_done_method;
+  // Post Inital Receives for Particle Buffer
+  monteCarlo->particle_buffer->Post_Receive_Particle_Buffer(
+      my_particle_vault.getVaultSize());
 
-    do
-    {
-        int particle_count = 0; // Initialize count of num_particles processed
+  // Get Test For Done Method (Blocking or non-blocking
+  MC_New_Test_Done_Method::Enum new_test_done_method =
+      monteCarlo->particle_buffer->new_test_done_method;
 
-        while ( !done )
-        {
-            uint64_t fill_vault = 0;
+  do {
+    int particle_count = 0; // Initialize count of num_particles processed
 
-  // #ifdef HAVE_VARIORUM 
-  // VARIORUM_ANNOTATE_GET_NODE_POWER_JSON;
-  // #endif
-            for ( uint64_t processing_vault = 0; processing_vault < my_particle_vault.processingSize(); processing_vault++ )
-            {
-                MC_FASTTIMER_START(MC_Fast_Timer::cycleTracking_Kernel);
-                uint64_t processed_vault = my_particle_vault.getFirstEmptyProcessedVault();
+    while (!done) {
+      uint64_t fill_vault = 0;
 
-                ParticleVault *processingVault = my_particle_vault.getTaskProcessingVault(processing_vault);
-                ParticleVault *processedVault =  my_particle_vault.getTaskProcessedVault(processed_vault);
-            
-                int numParticles = processingVault->size();
-            
-                if ( numParticles != 0 )
-                {
-                    NVTX_Range trackingKernel("cycleTracking_TrackingKernel"); // range ends at end of scope
+      // #ifdef HAVE_VARIORUM
+      // VARIORUM_ANNOTATE_GET_POWER_INFO;
+      // VARIORUM_ANNOTATE_GET_ENERGY_INFO;
+      // #endif
+      for (uint64_t processing_vault = 0;
+           processing_vault < my_particle_vault.processingSize();
+           processing_vault++) {
+        MC_FASTTIMER_START(MC_Fast_Timer::cycleTracking_Kernel);
+        uint64_t processed_vault =
+            my_particle_vault.getFirstEmptyProcessedVault();
 
-                    // The tracking kernel can run
-                    // * As a cuda kernel
-                    // * As an OpenMP 4.5 parallel loop on the GPU
-                    // * As an OpenMP 3.0 parallel loop on the CPU
-                    // * AS a single thread on the CPU.
-                    switch (execPolicy)
-                    {
-                      case gpuWithCUDA:
-                       {
-                          #if defined (HAVE_CUDA)
-                          dim3 grid(1,1,1);
-                          dim3 block(1,1,1);
-                          int runKernel = ThreadBlockLayout( grid, block, numParticles);
-                          
-                          //Call Cycle Tracking Kernel
-                          if( runKernel )
-                             CycleTrackingKernel<<<grid, block >>>( monteCarlo, numParticles, processingVault, processedVault );
-                          
-                          //Synchronize the stream so that memory is copied back before we begin MPI section
-                          cudaPeekAtLastError();
-                          cudaDeviceSynchronize();
-                          #endif
-                       }
-                       break;
-                       
-                      case gpuWithOpenMP:
-                       {
-                          int nthreads=128;
-                          if (numParticles <  64*56 ) 
-                             nthreads = 64;
-                          int nteams = (numParticles + nthreads - 1 ) / nthreads;
-                          nteams = nteams > 1 ? nteams : 1;
-                          #ifdef HAVE_OPENMP_TARGET
-                          #pragma omp target enter data map(to:monteCarlo[0:1]) 
-                          #pragma omp target enter data map(to:processingVault[0:1]) 
-                          #pragma omp target enter data map(to:processedVault[0:1])
-                          #pragma omp target teams distribute parallel for num_teams(nteams) thread_limit(128)
-                          #endif
-                          for ( int particle_index = 0; particle_index < numParticles; particle_index++ )
-                          {
-                             CycleTrackingGuts( monteCarlo, particle_index, processingVault, processedVault );
-                          }
-                          #ifdef HAVE_OPENMP_TARGET
-                          #pragma omp target exit data map(from:monteCarlo[0:1])
-                          #pragma omp target exit data map(from:processingVault[0:1])
-                          #pragma omp target exit data map(from:processedVault[0:1])
-                          #endif
-                       }
-                       break;
+        ParticleVault *processingVault =
+            my_particle_vault.getTaskProcessingVault(processing_vault);
+        ParticleVault *processedVault =
+            my_particle_vault.getTaskProcessedVault(processed_vault);
 
-                      case cpu:
-                       #include "mc_omp_parallel_for_schedule_static.hh"
-                       for ( int particle_index = 0; particle_index < numParticles; particle_index++ )
-                       {
-                          CycleTrackingGuts( monteCarlo, particle_index, processingVault, processedVault );
-                       }
-                       break;
-                      default:
-                       qs_assert(false);
-                    } // end switch
-                }
+        int numParticles = processingVault->size();
 
-                particle_count += numParticles;
+        if (numParticles != 0) {
+          NVTX_Range trackingKernel(
+              "cycleTracking_TrackingKernel"); // range ends at end of scope
 
-                MC_FASTTIMER_STOP(MC_Fast_Timer::cycleTracking_Kernel);
+          // The tracking kernel can run
+          // * As a cuda kernel
+          // * As an OpenMP 4.5 parallel loop on the GPU
+          // * As an OpenMP 3.0 parallel loop on the CPU
+          // * AS a single thread on the CPU.
+          switch (execPolicy) {
+          case gpuNative: {
+#if defined(GPU_NATIVE)
+            dim3 grid(1, 1, 1);
+            dim3 block(1, 1, 1);
+            int runKernel = ThreadBlockLayout(grid, block, numParticles);
 
-                MC_FASTTIMER_START(MC_Fast_Timer::cycleTracking_MPI);
+            // Call Cycle Tracking Kernel
+            if (runKernel)
+              CycleTrackingKernel<<<grid, block>>>(
+                  monteCarlo, numParticles, processingVault, processedVault);
 
-                // Next, communicate particles that have crossed onto
-                // other MPI ranks.
-                NVTX_Range cleanAndComm("cycleTracking_clean_and_comm");
-                
-                SendQueue &sendQueue = *(my_particle_vault.getSendQueue());
-                monteCarlo->particle_buffer->Allocate_Send_Buffer( sendQueue );
+            // Synchronize the stream so that memory is copied back before we
+            // begin MPI section
+            gpuPeekAtLastError();
+            gpuDeviceSynchronize();
+#endif
+          } break;
 
-                //Move particles from send queue to the send buffers
-                for ( int index = 0; index < sendQueue.size(); index++ )
-                {
-                    sendQueueTuple& sendQueueT = sendQueue.getTuple( index );
-                    MC_Base_Particle mcb_particle;
+          case gpuWithOpenMP: {
+            int nthreads = 128;
+            if (numParticles < 64 * 56)
+              nthreads = 64;
+            int nteams = (numParticles + nthreads - 1) / nthreads;
+            nteams = nteams > 1 ? nteams : 1;
+#ifdef HAVE_OPENMP_TARGET
+#pragma omp target enter data map(to : monteCarlo[0 : 1])
+#pragma omp target enter data map(to : processingVault[0 : 1])
+#pragma omp target enter data map(to : processedVault[0 : 1])
+#pragma omp target teams distribute parallel for num_teams(nteams)             \
+    thread_limit(128)
+#endif
+            for (int particle_index = 0; particle_index < numParticles;
+                 particle_index++) {
+              CycleTrackingGuts(monteCarlo, particle_index, processingVault,
+                                processedVault);
+            }
+#ifdef HAVE_OPENMP_TARGET
+#pragma omp target exit data map(from : monteCarlo[0 : 1])
+#pragma omp target exit data map(from : processingVault[0 : 1])
+#pragma omp target exit data map(from : processedVault[0 : 1])
+#endif
+          } break;
 
-                    processingVault->getBaseParticleComm( mcb_particle, sendQueueT._particleIndex );
+          case cpu:
+#include "mc_omp_parallel_for_schedule_static.hh"
+            for (int particle_index = 0; particle_index < numParticles;
+                 particle_index++) {
+              CycleTrackingGuts(monteCarlo, particle_index, processingVault,
+                                processedVault);
+            }
+            break;
+          default:
+            qs_assert(false);
+          } // end switch
+        }
 
-                    int buffer = monteCarlo->particle_buffer->Choose_Buffer(sendQueueT._neighbor );
-                    monteCarlo->particle_buffer->Buffer_Particle(mcb_particle, buffer );
-                }
+        particle_count += numParticles;
 
-                monteCarlo->particle_buffer->Send_Particle_Buffers(); // post MPI sends
+        MC_FASTTIMER_STOP(MC_Fast_Timer::cycleTracking_Kernel);
 
-                processingVault->clear(); //remove the invalid particles
-                sendQueue.clear();
+        MC_FASTTIMER_START(MC_Fast_Timer::cycleTracking_MPI);
 
-                // Move particles in "extra" vaults into the regular vaults.
-                my_particle_vault.cleanExtraVaults();
+        // Next, communicate particles that have crossed onto
+        // other MPI ranks.
+        NVTX_Range cleanAndComm("cycleTracking_clean_and_comm");
 
-                // receive any particles that have arrived from other ranks
-                monteCarlo->particle_buffer->Receive_Particle_Buffers( fill_vault );
+        SendQueue &sendQueue = *(my_particle_vault.getSendQueue());
+        monteCarlo->particle_buffer->Allocate_Send_Buffer(sendQueue);
 
-                MC_FASTTIMER_STOP(MC_Fast_Timer::cycleTracking_MPI);
+        // Move particles from send queue to the send buffers
+        for (int index = 0; index < sendQueue.size(); index++) {
+          sendQueueTuple &sendQueueT = sendQueue.getTuple(index);
+          MC_Base_Particle mcb_particle;
 
-            } // for loop on vaults
+          processingVault->getBaseParticleComm(mcb_particle,
+                                               sendQueueT._particleIndex);
 
-            MC_FASTTIMER_START(MC_Fast_Timer::cycleTracking_MPI);
+          int buffer =
+              monteCarlo->particle_buffer->Choose_Buffer(sendQueueT._neighbor);
+          monteCarlo->particle_buffer->Buffer_Particle(mcb_particle, buffer);
+        }
 
-            NVTX_Range collapseRange("cycleTracking_Collapse_ProcessingandProcessed");
-            my_particle_vault.collapseProcessing();
-            my_particle_vault.collapseProcessed();
-            collapseRange.endRange();
+        monteCarlo->particle_buffer->Send_Particle_Buffers(); // post MPI sends
 
+        processingVault->clear(); // remove the invalid particles
+        sendQueue.clear();
 
-            //Test for done - blocking on all MPI ranks
-            NVTX_Range doneRange("cycleTracking_Test_Done_New");
-            done = monteCarlo->particle_buffer->Test_Done_New( new_test_done_method );
-            doneRange.endRange();
+        // Move particles in "extra" vaults into the regular vaults.
+        my_particle_vault.cleanExtraVaults();
 
-            MC_FASTTIMER_STOP(MC_Fast_Timer::cycleTracking_MPI);
+        // receive any particles that have arrived from other ranks
+        monteCarlo->particle_buffer->Receive_Particle_Buffers(fill_vault);
 
-        } // while not done: Test_Done_New()
+        MC_FASTTIMER_STOP(MC_Fast_Timer::cycleTracking_MPI);
 
-        // Everything should be done normally.
-        done = monteCarlo->particle_buffer->Test_Done_New( MC_New_Test_Done_Method::Blocking );
+      } // for loop on vaults
 
-    } while ( !done );
+      MC_FASTTIMER_START(MC_Fast_Timer::cycleTracking_MPI);
 
-    //Make sure to cancel all pending receive requests
-    monteCarlo->particle_buffer->Cancel_Receive_Buffer_Requests();
-    //Make sure Buffers Memory is Free
-    monteCarlo->particle_buffer->Free_Buffers();
+      NVTX_Range collapseRange("cycleTracking_Collapse_ProcessingandProcessed");
+      my_particle_vault.collapseProcessing();
+      my_particle_vault.collapseProcessed();
+      collapseRange.endRange();
 
-   MC_FASTTIMER_STOP(MC_Fast_Timer::cycleTracking);
+      // Test for done - blocking on all MPI ranks
+      NVTX_Range doneRange("cycleTracking_Test_Done_New");
+      done = monteCarlo->particle_buffer->Test_Done_New(new_test_done_method);
+      doneRange.endRange();
+
+      MC_FASTTIMER_STOP(MC_Fast_Timer::cycleTracking_MPI);
+
+    } // while not done: Test_Done_New()
+
+    // Everything should be done normally.
+    done = monteCarlo->particle_buffer->Test_Done_New(
+        MC_New_Test_Done_Method::Blocking);
+
+  } while (!done);
+
+  // Make sure to cancel all pending receive requests
+  monteCarlo->particle_buffer->Cancel_Receive_Buffer_Requests();
+  // Make sure Buffers Memory is Free
+  monteCarlo->particle_buffer->Free_Buffers();
+
+  MC_FASTTIMER_STOP(MC_Fast_Timer::cycleTracking);
 }
 
+void cycleFinalize() {
+#ifdef HAVE_VARIORUM
+  VARIORUM_ANNOTATE_GET_POWER_INFO;
+  VARIORUM_ANNOTATE_GET_ENERGY_INFO;
+#endif
+  MC_FASTTIMER_START(MC_Fast_Timer::cycleFinalize);
 
-void cycleFinalize()
-{
-  #ifdef HAVE_VARIORUM 
-  VARIORUM_ANNOTATE_GET_NODE_POWER_JSON;
-  #endif
-    MC_FASTTIMER_START(MC_Fast_Timer::cycleFinalize);
+  mcco->_tallies->_balanceTask[0]._end =
+      mcco->_particleVaultContainer->sizeProcessed();
 
-    mcco->_tallies->_balanceTask[0]._end = mcco->_particleVaultContainer->sizeProcessed();
+  // Update the cumulative tally data.
+  mcco->_tallies->CycleFinalize(mcco);
 
-    // Update the cumulative tally data.
-    mcco->_tallies->CycleFinalize(mcco); 
+  mcco->time_info->cycle++;
 
-    mcco->time_info->cycle++;
+  mcco->particle_buffer->Free_Memory();
 
-    mcco->particle_buffer->Free_Memory();
-
-    MC_FASTTIMER_STOP(MC_Fast_Timer::cycleFinalize);
+  MC_FASTTIMER_STOP(MC_Fast_Timer::cycleFinalize);
 }
-

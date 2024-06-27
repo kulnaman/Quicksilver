@@ -1,3 +1,37 @@
+VARIORUM Integration
+===========
+
+Introduction
+------------
+
+This project shows hows variorum can be used as a Power and Energy instrumentation tool using source-code annoation APIs. These API are wrapper around relevant variorum calls with the main benifit being it provides a simple interface that logs data and writes them to file for each MPI node.
+
+The project is compiled and tested on Lassen Systems using variorum v:0.8 and Quicksilver's commit [eb68bb8](https://github.com/LLNL/Quicksilver/commit/eb68bb8d6fc53de1f65011d4e79ff2ed0dd60f3b).
+
+
+Building
+--------
+
+The above code Requires:
+* Variorum(Required)
+* CUDA(Optional)
+* MPI(Optional)
+* Rankstr(Optional): To collect data on all MPI nodes.
+* Jansson(Required): Parsing variourm Results.
+
+Quicksilver's Makefile(LLNL CORAL EA nodes section) has been modified to add all the relevant flags.
+
+API
+---
+
+Currently there are two API's:
+* VARIORUM_ANNOTATE_GET_POWER_INFO 
+* VARIORUM_ANNOTATE_GET_ENERGY_INFO 
+
+Calling these API will result in recording the Calling Function's File, Name and Line Number with power or energy data, depending on the API called.
+The results are written to a csv file with the format: {node_hostname}_power_data.csv or {node_hostname}_energy_data.csv
+
+
 Quicksilver
 ===========
 
