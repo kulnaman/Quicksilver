@@ -109,11 +109,11 @@ SHELL = /bin/bash
 #LDFLAGS = -L$(ROCM_ROOT)/lib -lamdhip64
 
 #AMD with HIP
-ROCM_ROOT = /opt/rocm-5.6.0
-CXX = /usr/tce/packages/cray-mpich/cray-mpich-8.1.26-rocmcc-5.6.0-cce-16.0.0a-magic/bin/mpicxx
-CXXFLAGS = -g 
-CPPFLAGS = -DHAVE_MPI -DHAVE_HIP -x hip --offload-arch=gfx90a -fgpu-rdc -Wno-unused-result
-LDFLAGS = -fgpu-rdc --hip-link --offload-arch=gfx90a
+# ROCM_ROOT = /opt/rocm-5.6.0
+# CXX = /usr/tce/packages/cray-mpich/cray-mpich-8.1.26-rocmcc-5.6.0-cce-16.0.0a-magic/bin/mpicxx
+# CXXFLAGS = -g 
+# CPPFLAGS = -DHAVE_MPI -DHAVE_HIP -x hip --offload-arch=gfx90a -fgpu-rdc -Wno-unused-result
+# LDFLAGS = -fgpu-rdc --hip-link --offload-arch=gfx90a
 
 
 
@@ -196,33 +196,27 @@ LDFLAGS = -fgpu-rdc --hip-link --offload-arch=gfx90a
 ## Choose one Cuda path
 ##CUDA_PATH = /usr/local/cuda-8.0
 #CUDA_PATH = /usr/tcetmp/packages/cuda-9.0.176
-CUDA_PATH =/usr/tce/packages/cuda/cuda-10.1.243
+CUDA_PATH =/software/slurm/spackages/linux-rocky8-x86_64/gcc-12.3.0/cuda-12.3.0-p2hoh7xwcu52zilqglv3nnc5bwnritue/
+HOST_COMPILER = /software/slurm/spackages/linux-rocky8-x86_64/gcc-12.3.0/openmpi-5.0.1-b4kn5p4eiiw2ohyz6csn5ymemjrflds2/bin/mpicc
 
- HOST_COMPILER =/usr/tce/packages/spectrum-mpi/spectrum-mpi-rolling-release-xl-2022.08.19/bin/mpixlC
-##HOST_COMPILER = /usr/tce/packages/spectrum-mpi/spectrum-mpi-2017.04.03-xl-beta-2017.09.13/bin/mpixlC
+#HOST_COMPILER = /usr/tce/packages/spectrum-mpi/spectrum-mpi-2017.04.03-xl-beta-2017.09.13/bin/mpixlC
 
 #Variorum Path
- VARIORUM_DIR=/g/g92/namankul/variorum/install_lassen_both
- include ${VARIORUM_DIR}/share/variorum/variorum_config.mk
 
-#Rankstr 
- RANKSTR_DIR=/g/g92/namankul/local/rankstr_lassen
- OPTFLAGS = -g -O3
+#OPTFLAGS = -O2 
 ## Version below for debugging
 ##OPTFLAGS = -DUSE_NVTX -g -G -lineinfo -O0
 
- CUDA_FLAGS = -I${CUDA_PATH}/include/ ${VARIORUM_INCLUDE_FLAGS} -I${RANKSTR_DIR}/include
- CUDA_LDFLAGS = -L${CUDA_PATH}/lib64/ -lcuda -lcudart
+CUDA_FLAGS = -I${CUDA_PATH}/include/ -I/usr/include
+CUDA_LDFLAGS = -L${CUDA_PATH}/lib64/ -lcuda -lcudart -lm -lstdc++
 
- CXX=$(CUDA_PATH)/bin/nvcc
- CXXFLAGS = -DHAVE_CUDA -std=c++11 $(OPTFLAGS) 
- CXXFLAGS += -gencode=arch=compute_60,code=\"sm_60,compute_60\" 
- CXXFLAGS += --compiler-bindir=$(HOST_COMPILER)
- # CPPFLAGS = -x cu -dc -DHAVE_MPI -DHAVE_ASYNC_MPI -DHAVE_VARIORUM  ${CUDA_FLAGS}
-CPPFLAGS = -x cu -dc -DHAVE_MPI -DHAVE_ASYNC_MPI  ${CUDA_FLAGS}
- RANKSTR_FLAGS= -Xlinker=-rpath,${RANKSTR_DIR}/lib64 -L${RANKSTR_DIR}/lib64 -lrankstr
- LDFLAGS  = $(CUDA_LDFLAGS) -Xlinker=-rpath,${VARIORUM_DIR}/lib ${VARIORUM_LIB_FLAGS} ${RANKSTR_FLAGS} 
-##LDFLAGS += ${CUDA_PATH}/lib64/libnvToolsExt.so
+CXX=$(CUDA_PATH)/bin/nvcc
+CXXFLAGS = -DHAVE_CUDA -std=c++11 $(OPTFLAGS) -Xptxas -v 
+CXXFLAGS += -gencode=arch=compute_60,code=\"sm_60,compute_60\" 
+CXXFLAGS += --compiler-bindir=$(HOST_COMPILER)
+CPPFLAGS = -x cu -dc -DHAVE_MPI -DHAVE_ASYNC_MPI
+LDFLAGS  = $(CUDA_LDFLAGS) 
+#LDFLAGS += ${CUDA_PATH}/lib64/libnvToolsExt.so
 
 
 
@@ -373,9 +367,7 @@ SOURCES= \
     main.cc \
     parseUtils.cc \
     utils.cc \
-    utilsMpi.cc \
-		variorum_annotation.cc
-
+    utilsMpi.cc 
 CC_OBJECTS=$(SOURCES:.cc=.o)
 
 DEFAULT: ${Quicksilver_EXE}

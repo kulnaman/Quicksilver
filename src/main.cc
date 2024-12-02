@@ -24,9 +24,6 @@
 #include "EnergySpectrum.hh"
 #include "git_hash.hh"
 #include "git_vers.hh"
-#ifdef HAVE_VARIORUM
-#include "variorum_annotation.hh"
-#endif
 void gameOver();
 void cycleInit( bool loadBalance );
 void cycleTracking(MonteCarlo* monteCarlo);
@@ -42,10 +39,6 @@ int main(int argc, char** argv)
 
    printBanner(GIT_VERS, GIT_HASH);
    // int ret=print_variorum_data();
-  #ifdef HAVE_VARIORUM 
-  variorum_annotate_init(); 
-  VARIORUM_ANNOTATE_GET_NODE_POWER_JSON;
-  #endif
    Parameters params = getParameters(argc, argv);
    printParameters(params, cout);
 
@@ -84,9 +77,6 @@ int main(int argc, char** argv)
 #else
    delete mcco;
 #endif
-  #ifdef HAVE_VARIORUM
-  variorum_annotate_finalize();
-  #endif
    mpiFinalize();
    
    return 0;
@@ -132,9 +122,6 @@ void gameOver()
 void cycleInit( bool loadBalance )
 {
 
-  #ifdef HAVE_VARIORUM 
-  VARIORUM_ANNOTATE_GET_NODE_POWER_JSON;
-  #endif
     MC_FASTTIMER_START(MC_Fast_Timer::cycleInit);
 
     mcco->clearCrossSectionCache();
@@ -177,9 +164,6 @@ GLOBAL void CycleTrackingKernel( MonteCarlo* monteCarlo, int num_particles, Part
 void cycleTracking(MonteCarlo *monteCarlo)
 {
  
-  #ifdef HAVE_VARIORUM 
-  VARIORUM_ANNOTATE_GET_NODE_POWER_JSON;
-  #endif
     MC_FASTTIMER_START(MC_Fast_Timer::cycleTracking);
 
     bool done = false;
@@ -355,9 +339,6 @@ void cycleTracking(MonteCarlo *monteCarlo)
 
 void cycleFinalize()
 {
-  #ifdef HAVE_VARIORUM 
-  VARIORUM_ANNOTATE_GET_NODE_POWER_JSON;
-  #endif
     MC_FASTTIMER_START(MC_Fast_Timer::cycleFinalize);
 
     mcco->_tallies->_balanceTask[0]._end = mcco->_particleVaultContainer->sizeProcessed();
